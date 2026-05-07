@@ -181,6 +181,21 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
   renderer.setOrientation(orig_orientation);
 }
 
+std::array<Rect, 4> BaseTheme::getButtonHintTouchBounds(const GfxRenderer& renderer) const {
+  constexpr int buttonWidth = 106;
+  constexpr int buttonHeight = BaseMetrics::values.buttonHintsHeight;
+  constexpr int buttonY = BaseMetrics::values.buttonHintsHeight;
+  constexpr int x4ButtonPositions[] = {25, 130, 245, 350};
+  constexpr int x3ButtonPositions[] = {38, 154, 268, 384};
+  const int* buttonPositions = gpio.deviceIsX3() ? x3ButtonPositions : x4ButtonPositions;
+  const int pageHeight = renderer.getDisplayVisibleHeight();
+
+  return {Rect{buttonPositions[0], pageHeight - buttonY, buttonWidth, buttonHeight},
+          Rect{buttonPositions[1], pageHeight - buttonY, buttonWidth, buttonHeight},
+          Rect{buttonPositions[2], pageHeight - buttonY, buttonWidth, buttonHeight},
+          Rect{buttonPositions[3], pageHeight - buttonY, buttonWidth, buttonHeight}};
+}
+
 void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* topBtn, const char* bottomBtn) const {
   const int screenWidth = renderer.getScreenWidth();
   constexpr int buttonWidth = BaseMetrics::values.sideButtonHintsWidth;  // Width on screen (height when rotated)

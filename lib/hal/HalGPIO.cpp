@@ -9,6 +9,7 @@ HalGPIO gpio;
 namespace {
 constexpr uint16_t TOUCH_SWIPE_THRESHOLD = 70;
 constexpr unsigned long TOUCH_RELEASE_GRACE_MS = 120;
+constexpr unsigned long TOUCH_HOME_BUTTON_REPEAT_MS = 250;
 constexpr uint64_t POWER_WAKE_MASK = 1ULL << T5S3_BOOT_BTN;
 constexpr uint64_t TOUCH_WAKE_MASK = 1ULL << T5S3_TOUCH_INT;
 
@@ -37,7 +38,12 @@ void HalGPIO::begin() {
 
 void HalGPIO::readTouchState() {
   BoardT5S3::TouchPoint point;
-  if (!touch.readPoint(&point)) {
+  bool touchHomeButtonPressed = false;
+  if (!touch.readPoint(&point, &touchHomeButtonPressed)) {
+    if (touchHomeButtonPressed && millis() - lastTouchHomeButtonEventTime >= TOUCH_HOME_BUTTON_REPEAT_MS) {
+      touchHomeButtonEvent = true;
+      lastTouchHomeButtonEventTime = millis();
+    }
     if (touchActive && millis() - lastTouchSeenTime > TOUCH_RELEASE_GRACE_MS) {
       if (!touchMoved) {
         touchTapPoint = {touchStartX, touchStartY};
@@ -46,6 +52,11 @@ void HalGPIO::readTouchState() {
       touchActive = false;
     }
     return;
+  }
+
+  if (touchHomeButtonPressed && millis() - lastTouchHomeButtonEventTime >= TOUCH_HOME_BUTTON_REPEAT_MS) {
+    touchHomeButtonEvent = true;
+    lastTouchHomeButtonEventTime = millis();
   }
 
   uint16_t x = point.x;
@@ -85,6 +96,7 @@ uint8_t HalGPIO::getState() {
 void HalGPIO::update() {
   const unsigned long currentTime = millis();
   touchTapEvent = false;
+  touchHomeButtonEvent = false;
   const uint8_t state = getState();
 
   pressedEvents = 0;
@@ -135,6 +147,8 @@ bool HalGPIO::getTouchTap(TouchPoint& point) const {
   point = touchTapPoint;
   return true;
 }
+
+bool HalGPIO::wasTouchHomeButtonPressed() const { return touchHomeButtonEvent; }
 
 unsigned long HalGPIO::getHeldTime() const {
   if (currentState > 0) {

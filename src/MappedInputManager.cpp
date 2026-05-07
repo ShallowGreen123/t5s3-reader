@@ -55,17 +55,26 @@ bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint
   return false;
 }
 
-bool MappedInputManager::wasPressed(const Button button) const { return mapButton(button, &HalGPIO::wasPressed); }
+bool MappedInputManager::wasPressed(const Button button) const {
+  return mapButton(button, &HalGPIO::wasPressed) || (hasInjectedButtonTap && injectedButtonTap == button);
+}
 
-bool MappedInputManager::wasReleased(const Button button) const { return mapButton(button, &HalGPIO::wasReleased); }
+bool MappedInputManager::wasReleased(const Button button) const {
+  return mapButton(button, &HalGPIO::wasReleased) || (hasInjectedButtonTap && injectedButtonTap == button);
+}
 
-bool MappedInputManager::isPressed(const Button button) const { return mapButton(button, &HalGPIO::isPressed); }
+bool MappedInputManager::isPressed(const Button button) const {
+  if (hasInjectedButtonTap && injectedButtonTap == button) {
+    return false;
+  }
+  return mapButton(button, &HalGPIO::isPressed);
+}
 
-bool MappedInputManager::wasAnyPressed() const { return gpio.wasAnyPressed(); }
+bool MappedInputManager::wasAnyPressed() const { return gpio.wasAnyPressed() || hasInjectedButtonTap; }
 
-bool MappedInputManager::wasAnyReleased() const { return gpio.wasAnyReleased(); }
+bool MappedInputManager::wasAnyReleased() const { return gpio.wasAnyReleased() || hasInjectedButtonTap; }
 
-unsigned long MappedInputManager::getHeldTime() const { return gpio.getHeldTime(); }
+unsigned long MappedInputManager::getHeldTime() const { return hasInjectedButtonTap ? 0 : gpio.getHeldTime(); }
 
 bool MappedInputManager::wasTouchTapped(TouchPoint& point, const GfxRenderer& renderer) const {
   HalGPIO::TouchPoint raw;
@@ -96,6 +105,8 @@ bool MappedInputManager::wasTouchTapped(TouchPoint& point, const GfxRenderer& re
   return true;
 }
 
+bool MappedInputManager::wasTouchHomeButtonPressed() const { return gpio.wasTouchHomeButtonPressed(); }
+
 MappedInputManager::Labels MappedInputManager::mapLabels(const char* back, const char* confirm, const char* previous,
                                                          const char* next) const {
   // Build the label order based on the configured hardware mapping.
@@ -119,6 +130,39 @@ MappedInputManager::Labels MappedInputManager::mapLabels(const char* back, const
   return {labelForHardware(HalGPIO::BTN_BACK), labelForHardware(HalGPIO::BTN_CONFIRM),
           labelForHardware(HalGPIO::BTN_LEFT), labelForHardware(HalGPIO::BTN_RIGHT)};
 }
+
+bool MappedInputManager::resolveTouchFrontButton(const size_t slotIndex, Button& button) const {
+  constexpr uint8_t kFrontButtons[] = {HalGPIO::BTN_BACK, HalGPIO::BTN_CONFIRM, HalGPIO::BTN_LEFT, HalGPIO::BTN_RIGHT};
+  if (slotIndex >= sizeof(kFrontButtons)) {
+    return false;
+  }
+
+  const uint8_t hardwareButton = kFrontButtons[slotIndex];
+  if (hardwareButton == SETTINGS.frontButtonBack) {
+    button = Button::Back;
+    return true;
+  }
+  if (hardwareButton == SETTINGS.frontButtonConfirm) {
+    button = Button::Confirm;
+    return true;
+  }
+  if (hardwareButton == SETTINGS.frontButtonLeft) {
+    button = Button::Left;
+    return true;
+  }
+  if (hardwareButton == SETTINGS.frontButtonRight) {
+    button = Button::Right;
+    return true;
+  }
+  return false;
+}
+
+void MappedInputManager::injectButtonTap(const Button button) {
+  injectedButtonTap = button;
+  hasInjectedButtonTap = true;
+}
+
+void MappedInputManager::clearInjectedButtonTap() { hasInjectedButtonTap = false; }
 
 int MappedInputManager::getPressedFrontButton() const {
   // Scan the raw front buttons in hardware order.

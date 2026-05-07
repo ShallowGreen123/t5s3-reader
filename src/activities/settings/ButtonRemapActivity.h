@@ -14,6 +14,7 @@ class ButtonRemapActivity final : public Activity {
   void onExit() override;
   void loop() override;
   bool onTouchTap(int16_t x, int16_t y) override;
+  bool supportsTouchButtonHints() const override { return false; }
   void render(RenderLock&&) override;
 
  private:

@@ -28,6 +28,8 @@ class HalGPIO {
   bool touchMoved = false;
   bool touchTapEvent = false;
   TouchPoint touchTapPoint;
+  bool touchHomeButtonEvent = false;
+  unsigned long lastTouchHomeButtonEventTime = 0;
 
   bool lastUsbConnected = false;
   bool usbStateChanged = false;
@@ -56,6 +58,7 @@ class HalGPIO {
   bool wasAnyReleased() const;
   unsigned long getHeldTime() const;
   bool getTouchTap(TouchPoint& point) const;
+  bool wasTouchHomeButtonPressed() const;
 
   void startDeepSleep();
   void verifyPowerButtonWakeup(uint16_t requiredDurationMs, bool shortPressAllowed);

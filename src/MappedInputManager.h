@@ -30,12 +30,18 @@ class MappedInputManager {
   bool wasAnyReleased() const;
   unsigned long getHeldTime() const;
   bool wasTouchTapped(TouchPoint& point, const GfxRenderer& renderer) const;
+  bool wasTouchHomeButtonPressed() const;
   Labels mapLabels(const char* back, const char* confirm, const char* previous, const char* next) const;
+  bool resolveTouchFrontButton(size_t slotIndex, Button& button) const;
+  void injectButtonTap(Button button);
+  void clearInjectedButtonTap();
   // Returns the raw front button index that was pressed this frame (or -1 if none).
   int getPressedFrontButton() const;
 
  private:
   HalGPIO& gpio;
+  bool hasInjectedButtonTap = false;
+  Button injectedButtonTap = Button::Back;
 
   bool mapButton(Button button, bool (HalGPIO::*fn)(uint8_t) const) const;
 };

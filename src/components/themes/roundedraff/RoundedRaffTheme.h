@@ -60,5 +60,6 @@ class RoundedRaffTheme : public BaseTheme {
                 bool highlightValue = false) const override;
   void drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
                        const char* btn4) const override;
+  std::array<Rect, 4> getButtonHintTouchBounds(const GfxRenderer& renderer) const override;
   bool homeMenuShowsContinueReading() const { return true; }
 };

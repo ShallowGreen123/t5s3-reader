@@ -418,3 +418,22 @@ void RoundedRaffTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, 
 
   renderer.setOrientation(origOrientation);
 }
+
+std::array<Rect, 4> RoundedRaffTheme::getButtonHintTouchBounds(const GfxRenderer& renderer) const {
+  const int pageWidth = renderer.getDisplayVisibleWidth();
+  const int pageHeight = renderer.getDisplayVisibleHeight();
+  const int sidePadding = 20;
+  const int groupGap = 10;
+  const int bottomMargin = 10;
+  const int hintHeight = RoundedRaffMetrics::values.buttonHintsHeight - 10;
+  const int groupWidth = (pageWidth - sidePadding * 2 - groupGap) / 2;
+  const int hintY = pageHeight - hintHeight - bottomMargin;
+  const int halfGroupWidth = groupWidth / 2;
+  const int leftGroupX = sidePadding;
+  const int rightGroupX = leftGroupX + groupWidth + groupGap;
+
+  return {Rect{leftGroupX, hintY, halfGroupWidth, hintHeight},
+          Rect{leftGroupX + halfGroupWidth, hintY, groupWidth - halfGroupWidth, hintHeight},
+          Rect{rightGroupX, hintY, halfGroupWidth, hintHeight},
+          Rect{rightGroupX + halfGroupWidth, hintY, groupWidth - halfGroupWidth, hintHeight}};
+}

@@ -18,6 +18,7 @@ constexpr uint16_t GT911_PRODUCT_ID_REG = 0x8140;
 constexpr uint16_t GT911_STATUS_REG = 0x814E;
 constexpr uint16_t GT911_POINT1_REG = 0x814F;
 constexpr uint8_t GT911_STATUS_READY = 0x80;
+constexpr uint8_t GT911_STATUS_HAVE_KEY = 0x10;
 constexpr uint8_t GT911_TOUCH_COUNT_MASK = 0x0F;
 constexpr uint8_t GT911_BACKUP_ADDR = 0x14;
 
@@ -268,17 +269,30 @@ bool GT911Touch::begin() {
   return false;
 }
 
-bool GT911Touch::readPoint(TouchPoint* point) {
+bool GT911Touch::readPoint(TouchPoint* point, bool* homeButtonPressed) {
   if (!available || point == nullptr) {
+    if (homeButtonPressed) {
+      *homeButtonPressed = false;
+    }
     return false;
   }
 
   uint8_t status = 0;
   if (!readReg(GT911_STATUS_REG, &status, 1)) {
+    if (homeButtonPressed) {
+      *homeButtonPressed = false;
+    }
     return false;
   }
   if ((status & GT911_STATUS_READY) == 0) {
+    if (homeButtonPressed) {
+      *homeButtonPressed = false;
+    }
     return false;
+  }
+
+  if (homeButtonPressed) {
+    *homeButtonPressed = (status & GT911_STATUS_HAVE_KEY) != 0;
   }
 
   const uint8_t touchCount = status & GT911_TOUCH_COUNT_MASK;

@@ -32,7 +32,7 @@ struct TouchPoint {
 class GT911Touch {
  public:
   bool begin();
-  bool readPoint(TouchPoint* point);
+  bool readPoint(TouchPoint* point, bool* homeButtonPressed = nullptr);
   bool isAvailable() const { return available; }
 
  private:

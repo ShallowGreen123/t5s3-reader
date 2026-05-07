@@ -34,6 +34,7 @@ class Activity {
   virtual void loop() {}
   virtual bool onTouchTap(int16_t x, int16_t y) { return false; }
   virtual bool showsHomeTouchButton() const { return true; }
+  virtual bool supportsTouchButtonHints() const { return true; }
 
   virtual void render(RenderLock&&) {}
 
@@ -64,4 +65,5 @@ class Activity {
   void onGoHome();
   void onSelectBook(const std::string& path);
   bool isHomeTouchTap(int16_t x, int16_t y) const;
+  bool resolveTouchButtonHint(int16_t x, int16_t y, MappedInputManager::Button& button) const;
 };

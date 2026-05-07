@@ -54,21 +54,38 @@ void ActivityManager::renderTaskLoop() {
 }
 
 void ActivityManager::loop() {
+  bool injectedTouchButtonTap = false;
   if (currentActivity) {
     // Note: do not hold a lock here, the loop() method must be responsible for acquire one if needed
+    bool activityHandled = false;
+    if (mappedInput.wasTouchHomeButtonPressed() && currentActivity->showsHomeTouchButton() && currentActivity->name != "Home") {
+      currentActivity->onGoHome();
+      activityHandled = true;
+    }
+
     MappedInputManager::TouchPoint touchPoint{};
     bool touchHandled = false;
-    if (mappedInput.wasTouchTapped(touchPoint, renderer)) {
+    if (!activityHandled && mappedInput.wasTouchTapped(touchPoint, renderer)) {
       if (currentActivity->showsHomeTouchButton() && currentActivity->isHomeTouchTap(touchPoint.x, touchPoint.y)) {
         currentActivity->onGoHome();
         touchHandled = true;
       } else {
-        touchHandled = currentActivity->onTouchTap(touchPoint.x, touchPoint.y);
+        MappedInputManager::Button touchButton;
+        if (currentActivity->resolveTouchButtonHint(touchPoint.x, touchPoint.y, touchButton)) {
+          mappedInput.injectButtonTap(touchButton);
+          injectedTouchButtonTap = true;
+        } else {
+          touchHandled = currentActivity->onTouchTap(touchPoint.x, touchPoint.y);
+        }
       }
     }
-    if (!touchHandled) {
+    if (!activityHandled && !touchHandled) {
       currentActivity->loop();
     }
+  }
+
+  if (injectedTouchButtonTap) {
+    mappedInput.clearInjectedButtonTap();
   }
 
   while (pendingAction != PendingAction::None) {
