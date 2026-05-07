@@ -8,6 +8,7 @@ class SleepActivity final : public Activity {
   explicit SleepActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
       : Activity("Sleep", renderer, mappedInput) {}
   void onEnter() override;
+  bool supportsTouchHomeButton() const override { return false; }
   bool showsHomeTouchButton() const override { return false; }
 
  private:

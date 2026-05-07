@@ -20,18 +20,6 @@ constexpr int homeMenuMargin = 20;
 constexpr int homeMarginTop = 30;
 constexpr int subtitleY = 738;
 
-Rect getHomeButtonRect() { return UITheme::getHomeTouchBounds(BaseMetrics::values); }
-
-void drawHomeButton(const GfxRenderer& renderer) {
-  const Rect homeRect = getHomeButtonRect();
-  renderer.drawRect(homeRect.x, homeRect.y, homeRect.width, homeRect.height);
-  const auto homeLabel = renderer.truncatedText(SMALL_FONT_ID, tr(STR_HOME), homeRect.width - 12);
-  const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, homeLabel.c_str());
-  const int textX = homeRect.x + (homeRect.width - textWidth) / 2;
-  const int textY = homeRect.y + (homeRect.height - renderer.getLineHeight(SMALL_FONT_ID)) / 2;
-  renderer.drawText(SMALL_FONT_ID, textX, textY, homeLabel.c_str());
-}
-
 // Helper: draw battery icon at given position
 void drawBatteryIcon(const GfxRenderer& renderer, int x, int y, int battWidth, int rectHeight, uint16_t percentage) {
   // Draw battery outline (shared code)
@@ -332,8 +320,6 @@ void BaseTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
 }
 
 void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* title, const char* subtitle) const {
-  drawHomeButton(renderer);
-
   // Hide last battery draw
   constexpr int maxBatteryWidth = 80;
   renderer.fillRect(rect.x + rect.width - maxBatteryWidth, rect.y + 5, maxBatteryWidth,
@@ -348,8 +334,7 @@ void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* t
                    showBatteryPercentage);
 
   if (title) {
-    const Rect homeRect = getHomeButtonRect();
-    const int titleAreaX = homeRect.x + homeRect.width + 12;
+    const int titleAreaX = rect.x + BaseMetrics::values.contentSidePadding;
     const int titleAreaRight = batteryX - 12;
     const int titleAreaWidth = std::max(0, titleAreaRight - titleAreaX);
     auto truncatedTitle = renderer.truncatedText(UI_12_FONT_ID, title, titleAreaWidth, EpdFontFamily::BOLD);

@@ -21,5 +21,6 @@ class FullScreenMessageActivity final : public Activity {
         style(style),
         refreshMode(refreshMode) {}
   void onEnter() override;
+  bool supportsTouchHomeButton() const override { return false; }
   bool showsHomeTouchButton() const override { return false; }
 };

@@ -58,7 +58,8 @@ void ActivityManager::loop() {
   if (currentActivity) {
     // Note: do not hold a lock here, the loop() method must be responsible for acquire one if needed
     bool activityHandled = false;
-    if (mappedInput.wasTouchHomeButtonPressed() && currentActivity->showsHomeTouchButton() && currentActivity->name != "Home") {
+    if (mappedInput.wasTouchHomeButtonPressed() && currentActivity->supportsTouchHomeButton() &&
+        currentActivity->name != "Home") {
       currentActivity->onGoHome();
       activityHandled = true;
     }

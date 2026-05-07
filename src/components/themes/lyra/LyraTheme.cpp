@@ -41,18 +41,6 @@ constexpr int listIconSize = 24;
 constexpr int mainMenuColumns = 2;
 int coverWidth = 0;
 
-Rect getHomeButtonRect() { return UITheme::getHomeTouchBounds(LyraMetrics::values); }
-
-void drawHomeButton(const GfxRenderer& renderer) {
-  const Rect homeRect = getHomeButtonRect();
-  renderer.drawRoundedRect(homeRect.x, homeRect.y, homeRect.width, homeRect.height, 1, cornerRadius, true);
-  const auto homeLabel = renderer.truncatedText(SMALL_FONT_ID, tr(STR_HOME), homeRect.width - 12);
-  const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, homeLabel.c_str());
-  const int textX = homeRect.x + (homeRect.width - textWidth) / 2;
-  const int textY = homeRect.y + (homeRect.height - renderer.getLineHeight(SMALL_FONT_ID)) / 2;
-  renderer.drawText(SMALL_FONT_ID, textX, textY, homeLabel.c_str(), true, EpdFontFamily::REGULAR);
-}
-
 void drawLyraBatteryIcon(const GfxRenderer& renderer, int x, int y, int battWidth, int rectHeight,
                          uint16_t percentage) {
   BaseTheme::drawBatteryOutline(renderer, x, y, battWidth, rectHeight);
@@ -152,7 +140,6 @@ void LyraTheme::drawBatteryRight(const GfxRenderer& renderer, Rect rect, const b
 
 void LyraTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* title, const char* subtitle) const {
   renderer.fillRect(rect.x, rect.y, rect.width, rect.height, false);
-  drawHomeButton(renderer);
 
   const bool showBatteryPercentage =
       SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;

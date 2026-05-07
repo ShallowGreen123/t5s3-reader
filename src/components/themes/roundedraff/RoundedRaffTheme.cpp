@@ -104,16 +104,8 @@ void RoundedRaffTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const 
   if (title == nullptr) {
     return;
   }
-  const Rect homeRect = UITheme::getHomeTouchBounds(RoundedRaffMetrics::values);
-  renderer.drawRoundedRect(homeRect.x, homeRect.y, homeRect.width, homeRect.height, 2, kBottomRadius, true);
-  const auto homeLabel = renderer.truncatedText(SMALL_FONT_ID, tr(STR_HOME), homeRect.width - 12);
-  const int homeTextWidth = renderer.getTextWidth(SMALL_FONT_ID, homeLabel.c_str());
-  renderer.drawText(SMALL_FONT_ID, homeRect.x + (homeRect.width - homeTextWidth) / 2,
-                    homeRect.y + (homeRect.height - renderer.getLineHeight(SMALL_FONT_ID)) / 2, homeLabel.c_str(),
-                    true, EpdFontFamily::REGULAR);
-
   const int sidePadding = RoundedRaffMetrics::values.contentSidePadding;
-  const int titleX = std::max(rect.x + sidePadding, homeRect.x + homeRect.width + 12);
+  const int titleX = rect.x + sidePadding;
   const int titleY = rect.y + 14;
 
   const bool showBatteryPercentage =
