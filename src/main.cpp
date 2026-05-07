@@ -390,7 +390,7 @@ void loop() {
 
   // Check for any user activity (button press or release) or active background work
   static unsigned long lastActivityTime = millis();
-  if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || halTiltSensor.hadActivity() ||
+  if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || gpio.hadTouchActivity() || halTiltSensor.hadActivity() ||
       activityManager.preventAutoSleep()
 #ifdef ENABLE_SERIAL_LOG
       || Serial

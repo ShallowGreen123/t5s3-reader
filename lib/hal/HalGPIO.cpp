@@ -140,6 +140,8 @@ bool HalGPIO::wasReleased(uint8_t buttonIndex) const { return releasedEvents & b
 
 bool HalGPIO::wasAnyReleased() const { return releasedEvents > 0; }
 
+bool HalGPIO::hadTouchActivity() const { return touchActive || touchTapEvent || touchHomeButtonEvent; }
+
 bool HalGPIO::getTouchTap(TouchPoint& point) const {
   if (!touchTapEvent) {
     return false;

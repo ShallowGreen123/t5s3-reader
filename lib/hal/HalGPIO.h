@@ -56,6 +56,7 @@ class HalGPIO {
   bool wasAnyPressed() const;
   bool wasReleased(uint8_t buttonIndex) const;
   bool wasAnyReleased() const;
+  bool hadTouchActivity() const;
   unsigned long getHeldTime() const;
   bool getTouchTap(TouchPoint& point) const;
   bool wasTouchHomeButtonPressed() const;
