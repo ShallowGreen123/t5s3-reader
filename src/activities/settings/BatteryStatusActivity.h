@@ -15,11 +15,8 @@ class BatteryStatusActivity final : public Activity {
   bool preventAutoSleep() override { return true; }
 
  private:
-  static constexpr uint32_t REFRESH_INTERVAL_MS = 3000;
-
   BoardT5S3::BatteryState state = {};
   bool hasState = false;
-  uint32_t lastRefreshMs = 0;
 
   void refreshBattery();
 };

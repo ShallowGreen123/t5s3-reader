@@ -292,7 +292,6 @@ void BatteryStatusActivity::onEnter() {
 void BatteryStatusActivity::refreshBattery() {
   BoardT5S3::beginBatteryManagement();
   hasState = BoardT5S3::readBatteryState(&state);
-  lastRefreshMs = millis();
 }
 
 void BatteryStatusActivity::loop() {
@@ -305,11 +304,6 @@ void BatteryStatusActivity::loop() {
     refreshBattery();
     requestUpdate();
     return;
-  }
-
-  if (millis() - lastRefreshMs >= REFRESH_INTERVAL_MS) {
-    refreshBattery();
-    requestUpdate();
   }
 }
 

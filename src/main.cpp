@@ -28,6 +28,7 @@
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "images/Logo120.h"
 #include "util/ButtonNavigator.h"
 #include "util/ScreenshotUtil.h"
 
@@ -131,6 +132,20 @@ unsigned long t1 = 0;
 unsigned long t2 = 0;
 constexpr unsigned long kPcaButtonPowerOffHoldMs = 2000;
 
+void renderPowerOffScreen(const char* status) {
+  RenderLock lock;
+  const auto pageWidth = renderer.getScreenWidth();
+  const auto pageHeight = renderer.getScreenHeight();
+
+  renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  renderer.clearScreen();
+  renderer.drawImage(Logo120, (pageWidth - 120) / 2, (pageHeight - 120) / 2 - 30, 120, 120);
+  renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 40, "CrossPoint", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 72, status, true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 102, "Hold PWR to power on");
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+}
+
 // Verify power button press duration on wake-up from deep sleep
 // Pre-condition: isWakeupByPowerButton() == true
 void verifyPowerButtonDuration() {
@@ -207,6 +222,18 @@ void enterDeepSleep() {
   halTiltSensor.deepSleep();
   display.deepSleep();
   LOG_DBG("MAIN", "Entering deep sleep");
+
+  powerManager.startDeepSleep(gpio);
+}
+
+void enterDeepSleepKeepingScreen() {
+  HalPowerManager::Lock powerLock;
+  APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
+  APP_STATE.saveToFile();
+
+  halTiltSensor.deepSleep();
+  display.deepSleep();
+  LOG_DBG("MAIN", "Entering deep sleep with current screen preserved");
 
   powerManager.startDeepSleep(gpio);
 }
@@ -440,13 +467,15 @@ void loop() {
   } else if (!confirmPowerOffHandled && gpio.getHeldTime() >= kPcaButtonPowerOffHoldMs) {
     LOG_DBG("MAIN", "PCA9535 button long press BQ25896 shutdown request");
     confirmPowerOffHandled = true;
+    renderPowerOffScreen("Shutting down...");
     if (BoardT5S3::shutdownBatteryPower()) {
-      delay(2500);
+      delay(1500);
       LOG_DBG("MAIN", "BQ25896 shutdown returned but device is still running; falling back to deep sleep");
     } else {
+      renderPowerOffScreen("Entering sleep mode...");
       LOG_ERR("MAIN", "BQ25896 shutdown failed or rejected; falling back to deep sleep");
     }
-    enterDeepSleep();
+    enterDeepSleepKeepingScreen();
     return;
   }
 
