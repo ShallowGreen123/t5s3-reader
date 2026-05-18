@@ -344,26 +344,31 @@ void CrossPointWebServerActivity::loop() {
       // Reset watchdog BEFORE processing - HTTP header parsing can be slow
       esp_task_wdt_reset();
 
-      // Process HTTP requests in tight loop for maximum throughput
-      // More iterations = more data processed per main loop cycle
-      constexpr int MAX_ITERATIONS = 500;
+      // Process requests in short slices so networking stays responsive
+      // without monopolizing loopTask long enough to upset the watchdog.
+      constexpr int MAX_ITERATIONS = 64;
+      constexpr unsigned long MAX_SLICE_MS = 12;
+      const unsigned long sliceStart = millis();
       for (int i = 0; i < MAX_ITERATIONS && webServer->isRunning(); i++) {
         webServer->handleClient();
-        // Reset watchdog every 32 iterations
-        if ((i & 0x1F) == 0x1F) {
+        // Reset watchdog and yield regularly during bursts of requests.
+        if ((i & 0x07) == 0x07) {
           esp_task_wdt_reset();
-        }
-        // Yield and check for exit button every 64 iterations
-        if ((i & 0x3F) == 0x3F) {
           yield();
-          // Force trigger an update of which buttons are being pressed so be have accurate state
-          // for back button checking
+          if (millis() - sliceStart >= MAX_SLICE_MS) {
+            break;
+          }
+        }
+        // Update input periodically so exit remains responsive.
+        if ((i & 0x0F) == 0x0F) {
           mappedInput.update();
-          // Check for exit button inside loop for responsiveness
           if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
             onGoHome();
             return;
           }
+        }
+        if (millis() - sliceStart >= MAX_SLICE_MS) {
+          break;
         }
       }
       lastHandleClientTime = millis();

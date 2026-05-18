@@ -25,6 +25,9 @@ namespace {
 constexpr const char* HIDDEN_ITEMS[] = {"System Volume Information", "XTCache"};
 constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
 constexpr uint16_t LOCAL_UDP_PORT = 8134;
+constexpr unsigned long REQUEST_PARSE_TIMEOUT_MS = 150;
+constexpr uint32_t REQUEST_SOCKET_TIMEOUT_SECONDS = 1;
+constexpr uint32_t RESPONSE_SOCKET_TIMEOUT_SECONDS = (HTTP_MAX_SEND_WAIT + 999) / 1000;
 
 // Static pointer for WebSocket callback (WebSocketsServer requires C-style callback)
 CrossPointWebServer* wsInstance = nullptr;
@@ -81,6 +84,78 @@ bool isProtectedItemName(const String& name) {
   }
   return false;
 }
+
+bool isCaptivePortalProbePath(const String& uri) {
+  return uri.startsWith("/generate_204") || uri == "/gen_204" || uri == "/hotspot-detect.html" ||
+         uri == "/canonical.html" || uri == "/ncsi.txt" || uri == "/connecttest.txt";
+}
+
+class CrossPointHttpServer : public WebServer {
+ public:
+  using WebServer::WebServer;
+
+  void handleClient() override {
+    if (_currentStatus == HC_NONE) {
+      _currentClient = _server.available();
+      if (!_currentClient) {
+        if (_nullDelay) {
+          delay(1);
+        }
+        return;
+      }
+
+      // Arduino's WebServer parses headers via Stream::readStringUntil(), which
+      // busy-waits until timeout. Keep that timeout short so a partial request
+      // from captive-portal probes cannot stall loopTask long enough to trip WDT.
+      static_cast<Stream&>(_currentClient).setTimeout(REQUEST_PARSE_TIMEOUT_MS);
+      _currentClient.setTimeout(REQUEST_SOCKET_TIMEOUT_SECONDS);
+      _currentStatus = HC_WAIT_READ;
+      _statusChange = millis();
+    }
+
+    bool keepCurrentClient = false;
+    bool callYield = false;
+
+    if (_currentClient.connected()) {
+      switch (_currentStatus) {
+        case HC_NONE:
+          break;
+        case HC_WAIT_READ:
+          if (_currentClient.available()) {
+            if (_parseRequest(_currentClient)) {
+              static_cast<Stream&>(_currentClient).setTimeout(HTTP_MAX_SEND_WAIT);
+              _currentClient.setTimeout(RESPONSE_SOCKET_TIMEOUT_SECONDS);
+              _contentLength = CONTENT_LENGTH_NOT_SET;
+              _handleRequest();
+            }
+          } else {
+            if (millis() - _statusChange <= HTTP_MAX_DATA_WAIT) {
+              keepCurrentClient = true;
+            }
+            callYield = true;
+          }
+          break;
+        case HC_WAIT_CLOSE:
+          if (millis() - _statusChange <= HTTP_MAX_CLOSE_WAIT) {
+            keepCurrentClient = true;
+            callYield = true;
+          }
+          break;
+      }
+    }
+
+    if (!keepCurrentClient) {
+      _currentClient = WiFiClient();
+      _currentStatus = HC_NONE;
+      _currentUpload.reset();
+      _currentRaw.reset();
+    }
+
+    if (callYield) {
+      yield();
+    }
+  }
+};
 }  // namespace
 
 // File listing page template - now using generated headers:
@@ -114,7 +189,7 @@ void CrossPointWebServer::begin() {
   LOG_DBG("WEB", "Network mode: %s", apMode ? "AP" : "STA");
 
   LOG_DBG("WEB", "Creating web server on port %d...", port);
-  server.reset(new WebServer(port));
+  server.reset(new CrossPointHttpServer(port));
 
   // Disable WiFi sleep to improve responsiveness and prevent 'unreachable' errors.
   // This is critical for reliable web server operation on ESP32.
@@ -343,8 +418,17 @@ void CrossPointWebServer::handleJszip() const {
 }
 
 void CrossPointWebServer::handleNotFound() const {
+  const String uri = server->uri();
+  if (apMode && isCaptivePortalProbePath(uri)) {
+    const String redirectUrl = "http://" + WiFi.softAPIP().toString() + "/";
+    server->sendHeader("Location", redirectUrl);
+    server->send(302, "text/plain", "");
+    LOG_DBG("WEB", "Redirected captive portal probe: %s -> %s", uri.c_str(), redirectUrl.c_str());
+    return;
+  }
+
   String message = "404 Not Found\n\n";
-  message += "URI: " + server->uri() + "\n";
+  message += "URI: " + uri + "\n";
   server->send(404, "text/plain", message);
 }
 
