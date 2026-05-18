@@ -4,6 +4,9 @@
 #include <Logging.h>
 #include <Serialization.h>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include "../converters/DirectPixelWriter.h"
 #include "../converters/ImageDecoderFactory.h"
 
@@ -81,6 +84,10 @@ bool renderFromCache(GfxRenderer& renderer, const std::string& cachePath, int x,
       uint8_t pixelValue = (rowBuffer[byteIdx] >> bitShift) & 0x03;
 
       pw.writePixel(x + col, pixelValue);
+    }
+
+    if (((row + 1) & 0x1F) == 0) {
+      vTaskDelay(1);
     }
   }
 

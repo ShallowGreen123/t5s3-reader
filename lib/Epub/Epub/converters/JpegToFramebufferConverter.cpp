@@ -9,6 +9,9 @@
 #include <cstdlib>
 #include <new>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include "DirectPixelWriter.h"
 #include "DitherUtils.h"
 #include "PixelCache.h"
@@ -38,6 +41,7 @@ struct JpegContext {
 
   PixelCache cache;
   bool caching{false};
+  uint32_t callbackCount{0};
 };
 
 // File I/O callbacks use pFile->fHandle to access the FsFile*,
@@ -185,6 +189,9 @@ int jpegDrawCallback(JPEGDRAW* pDraw) {
         if (caching) cw.writePixel(outX, dithered);
       }
     }
+    if ((++ctx->callbackCount & 0x0F) == 0) {
+      vTaskDelay(1);
+    }
     return 1;
   }
 
@@ -293,6 +300,9 @@ int jpegDrawCallback(JPEGDRAW* pDraw) {
         if (caching) cw.writePixel(outX, dithered);
       }
     }
+    if ((++ctx->callbackCount & 0x0F) == 0) {
+      vTaskDelay(1);
+    }
     return 1;
   }
 
@@ -327,6 +337,9 @@ int jpegDrawCallback(JPEGDRAW* pDraw) {
     }
   }
 
+  if ((++ctx->callbackCount & 0x0F) == 0) {
+    vTaskDelay(1);
+  }
   return 1;
 }
 

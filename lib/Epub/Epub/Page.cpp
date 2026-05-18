@@ -48,8 +48,12 @@ std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
   return std::unique_ptr<PageImage>(new PageImage(std::move(ib), xPos, yPos));
 }
 
-void Page::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) const {
+void Page::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                  const bool renderImages) const {
   for (auto& element : elements) {
+    if (!renderImages && element->getTag() == TAG_PageImage) {
+      continue;
+    }
     element->render(renderer, fontId, xOffset, yOffset);
   }
 }

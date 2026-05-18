@@ -7,6 +7,11 @@
 #include <Serialization.h>
 #include <Utf8.h>
 
+#include <algorithm>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
@@ -20,6 +25,20 @@ constexpr size_t CHUNK_SIZE = 8 * 1024;  // 8KB chunk for reading
 // Cache file magic and version
 constexpr uint32_t CACHE_MAGIC = 0x54585449;  // "TXTI"
 constexpr uint8_t CACHE_VERSION = 2;          // Increment when cache format changes
+
+bool isUtf8ContinuationByte(char c) { return (static_cast<uint8_t>(c) & 0xC0) == 0x80; }
+
+size_t nextUtf8Boundary(const std::string& text, size_t pos) {
+  if (pos >= text.size()) {
+    return text.size();
+  }
+
+  ++pos;
+  while (pos < text.size() && isUtf8ContinuationByte(text[pos])) {
+    ++pos;
+  }
+  return pos;
+}
 }  // namespace
 
 void TxtReaderActivity::onEnter() {
@@ -199,8 +218,8 @@ void TxtReaderActivity::buildPageIndex() {
       pageOffsets.push_back(offset);
     }
 
-    // Yield to other tasks periodically
-    if (pageOffsets.size() % 20 == 0) {
+    // Yield to other tasks periodically while building large TXT indexes.
+    if ((pageOffsets.size() & 0x07) == 0) {
       vTaskDelay(1);
     }
   }
@@ -233,6 +252,46 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<std::string>
 
   // Parse lines from buffer
   size_t pos = 0;
+  uint32_t wrapSteps = 0;
+
+  auto textWidth = [this](const std::string& text) {
+    return renderer.getTextAdvanceX(cachedFontId, text.c_str(), EpdFontFamily::REGULAR);
+  };
+
+  auto findWrapBreak = [&](const std::string& text) -> size_t {
+    std::vector<size_t> utf8Boundaries;
+    utf8Boundaries.reserve(std::min<size_t>(text.size(), 512));
+    for (size_t p = 0; p < text.size();) {
+      p = nextUtf8Boundary(text, p);
+      utf8Boundaries.push_back(p);
+    }
+
+    if (utf8Boundaries.empty()) {
+      return 0;
+    }
+
+    size_t low = 0;
+    size_t high = utf8Boundaries.size();
+    while (low < high) {
+      const size_t mid = (low + high + 1) / 2;
+      const size_t bytes = utf8Boundaries[mid - 1];
+      if (textWidth(text.substr(0, bytes)) <= viewportWidth) {
+        low = mid;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    const size_t maxFit = (low == 0) ? utf8Boundaries.front() : utf8Boundaries[low - 1];
+    if (maxFit < text.length()) {
+      const size_t spacePos = text.rfind(' ', maxFit > 0 ? maxFit - 1 : 0);
+      if (spacePos != std::string::npos && spacePos > 0) {
+        return spacePos;
+      }
+    }
+
+    return maxFit;
+  };
 
   while (pos < chunkSize && static_cast<int>(outLines.size()) < linesPerPage) {
     // Find end of line
@@ -264,7 +323,7 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<std::string>
 
     // Word wrap if needed
     while (!line.empty() && static_cast<int>(outLines.size()) < linesPerPage) {
-      int lineWidth = renderer.getTextWidth(cachedFontId, line.c_str());
+      const int lineWidth = textWidth(line);
 
       if (lineWidth <= viewportWidth) {
         outLines.push_back(line);
@@ -273,26 +332,8 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<std::string>
         break;
       }
 
-      // Find break point
-      size_t breakPos = line.length();
-      while (breakPos > 0 && renderer.getTextWidth(cachedFontId, line.substr(0, breakPos).c_str()) > viewportWidth) {
-        // Try to break at space
-        size_t spacePos = line.rfind(' ', breakPos - 1);
-        if (spacePos != std::string::npos && spacePos > 0) {
-          breakPos = spacePos;
-        } else {
-          // Break at character boundary for UTF-8
-          breakPos--;
-          // Make sure we don't break in the middle of a UTF-8 sequence
-          while (breakPos > 0 && (line[breakPos] & 0xC0) == 0x80) {
-            breakPos--;
-          }
-        }
-      }
-
-      if (breakPos == 0) {
-        breakPos = 1;
-      }
+      const size_t breakPos = findWrapBreak(line);
+      if (breakPos == 0) break;
 
       outLines.push_back(line.substr(0, breakPos));
 
@@ -303,6 +344,10 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<std::string>
       }
       lineBytePos += skipChars;
       line = line.substr(skipChars);
+
+      if ((++wrapSteps & 0x0F) == 0) {
+        vTaskDelay(1);
+      }
     }
 
     // Determine how much of the source buffer we consumed
@@ -473,7 +518,7 @@ bool TxtReaderActivity::loadPageIndexCache() {
   // - int32_t: lines per page
   // - int32_t: font ID (to invalidate cache on font change)
   // - int32_t: screen margin (to invalidate cache on margin change)
-  // - uint8_t: paragraph alignment (to invalidate cache on alignment change)
+  // - uint8_t: paragraph alignment (legacy metadata; alignment does not affect page offsets)
   // - uint32_t: total pages count
   // - N * uint32_t: page offsets
 
@@ -536,13 +581,16 @@ bool TxtReaderActivity::loadPageIndexCache() {
 
   uint8_t alignment;
   serialization::readPod(f, alignment);
-  if (alignment != cachedParagraphAlignment) {
-    LOG_DBG("TRS", "Cache paragraph alignment mismatch, rebuilding");
-    return false;
-  }
 
   uint32_t numPages;
   serialization::readPod(f, numPages);
+  const size_t cacheHeaderSize = sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint32_t) + sizeof(int32_t) +
+                                 sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(uint8_t) +
+                                 sizeof(uint32_t);
+  if (numPages == 0 || cacheHeaderSize + static_cast<size_t>(numPages) * sizeof(uint32_t) > f.size()) {
+    LOG_DBG("TRS", "Cache page count invalid, rebuilding");
+    return false;
+  }
 
   // Read page offsets
   pageOffsets.clear();

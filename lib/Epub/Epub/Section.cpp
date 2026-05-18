@@ -10,7 +10,7 @@
 #include "parsers/ChapterHtmlSlimParser.h"
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 22;
+constexpr uint8_t SECTION_FILE_VERSION = 23;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(uint8_t) +
                                  sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
@@ -35,6 +35,9 @@ uint32_t Section::onPageComplete(std::unique_ptr<Page> page) {
   LOG_DBG("SCT", "Page %d processed", pageCount);
 
   pageCount++;
+  if ((pageCount & 0x0F) == 0) {
+    vTaskDelay(1);
+  }
   return position;
 }
 
@@ -403,3 +406,5 @@ std::optional<uint16_t> Section::getParagraphIndexForPage(const uint16_t page) c
   serialization::readPod(f, pIdx);
   return pIdx;
 }
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>

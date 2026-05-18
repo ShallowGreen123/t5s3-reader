@@ -9,6 +9,9 @@
 #include <cstdlib>
 #include <new>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include "DirectPixelWriter.h"
 #include "DitherUtils.h"
 #include "PixelCache.h"
@@ -36,6 +39,7 @@ struct PngContext {
   bool caching{false};
 
   uint8_t* grayLineBuffer{nullptr};
+  uint32_t callbackCount{0};
 };
 
 // File I/O callbacks use pFile->fHandle to access the FsFile*,
@@ -230,6 +234,10 @@ int pngDrawCallback(PNGDRAW* pDraw) {
       error -= dstWidth;
       srcX++;
     }
+  }
+
+  if ((++ctx->callbackCount & 0x1F) == 0) {
+    vTaskDelay(1);
   }
 
   return 1;

@@ -463,11 +463,12 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
       return false;
     }
 
-    size_t remaining = inflatedDataSize;
-    while (remaining > 0) {
-      const size_t dataRead = file.read(buffer, remaining < chunkSize ? remaining : chunkSize);
-      if (dataRead == 0) {
-        LOG_ERR("ZIP", "Could not read more bytes");
+      size_t remaining = inflatedDataSize;
+      uint32_t chunkCounter = 0;
+      while (remaining > 0) {
+        const size_t dataRead = file.read(buffer, remaining < chunkSize ? remaining : chunkSize);
+        if (dataRead == 0) {
+          LOG_ERR("ZIP", "Could not read more bytes");
         free(buffer);
         return false;
       }
@@ -476,9 +477,12 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
         LOG_ERR("ZIP", "Failed to write all output bytes to stream");
         free(buffer);
         return false;
+        }
+        remaining -= dataRead;
+        if ((++chunkCounter & 0x0F) == 0) {
+          vTaskDelay(1);
+        }
       }
-      remaining -= dataRead;
-    }
 
     free(buffer);
     return true;
@@ -512,12 +516,13 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
     }
     ctx.reader.setReadCallback(zipReadCallback);
 
-    bool success = false;
-    size_t totalProduced = 0;
+      bool success = false;
+      size_t totalProduced = 0;
+      uint32_t chunkCounter = 0;
 
-    while (true) {
-      size_t produced;
-      const InflateStatus status = ctx.reader.readAtMost(outputBuffer, chunkSize, &produced);
+      while (true) {
+        size_t produced;
+        const InflateStatus status = ctx.reader.readAtMost(outputBuffer, chunkSize, &produced);
 
       totalProduced += produced;
       if (totalProduced > static_cast<size_t>(inflatedDataSize)) {
@@ -526,12 +531,15 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
         break;
       }
 
-      if (produced > 0) {
-        if (out.write(outputBuffer, produced) != produced) {
-          LOG_ERR("ZIP", "Failed to write all output bytes to stream");
-          break;
+        if (produced > 0) {
+          if (out.write(outputBuffer, produced) != produced) {
+            LOG_ERR("ZIP", "Failed to write all output bytes to stream");
+            break;
+          }
+          if ((++chunkCounter & 0x0F) == 0) {
+            vTaskDelay(1);
+          }
         }
-      }
 
       if (status == InflateStatus::Done) {
         if (totalProduced != static_cast<size_t>(inflatedDataSize)) {
@@ -559,3 +567,5 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
   LOG_ERR("ZIP", "Unsupported compression method");
   return false;
 }
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
