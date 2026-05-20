@@ -61,7 +61,7 @@ class HalGPIO {
   bool getTouchTap(TouchPoint& point) const;
   bool wasTouchHomeButtonPressed() const;
 
-  void startDeepSleep();
+  void startDeepSleep(bool wakeOnTouch = true);
   void verifyPowerButtonWakeup(uint16_t requiredDurationMs, bool shortPressAllowed);
 
   bool isUsbConnected() const;

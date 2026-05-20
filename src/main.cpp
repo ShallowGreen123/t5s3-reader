@@ -227,16 +227,36 @@ void enterDeepSleep() {
   powerManager.startDeepSleep(gpio);
 }
 
-void enterDeepSleepKeepingScreen() {
+void enterDeepSleepKeepingScreen(bool wakeOnTouch = true) {
   HalPowerManager::Lock powerLock;
   APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
   APP_STATE.saveToFile();
 
   halTiltSensor.deepSleep();
   display.deepSleep();
-  LOG_DBG("MAIN", "Entering deep sleep with current screen preserved");
+  LOG_DBG("MAIN", "Entering deep sleep with current screen preserved, wakeOnTouch=%d", wakeOnTouch ? 1 : 0);
 
-  powerManager.startDeepSleep(gpio);
+  powerManager.startDeepSleep(gpio, wakeOnTouch);
+}
+
+void enterPowerOffKeepingScreen(const char* status) {
+  {
+    HalPowerManager::Lock powerLock;
+    APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
+    APP_STATE.saveToFile();
+    display.deepSleep();
+
+    renderPowerOffScreen(status);
+    if (BoardT5S3::shutdownBatteryPower()) {
+      delay(1500);
+      LOG_DBG("MAIN", "BQ25896 shutdown returned but device is still running; falling back to deep sleep");
+    } else {
+      renderPowerOffScreen("Entering sleep mode...");
+      LOG_ERR("MAIN", "BQ25896 shutdown failed or rejected; falling back to deep sleep");
+    }
+  }
+
+  enterDeepSleepKeepingScreen(false);
 }
 
 void setupDisplayAndFonts() {
@@ -497,24 +517,21 @@ void loop() {
   } else if (!pcaPowerOffHandled && gpio.getHeldTime() >= kPcaButtonPowerOffHoldMs) {
     LOG_DBG("MAIN", "PCA9535 button long press BQ25896 shutdown request");
     pcaPowerOffHandled = true;
-    renderPowerOffScreen("Shutting down...");
-    if (BoardT5S3::shutdownBatteryPower()) {
-      delay(1500);
-      LOG_DBG("MAIN", "BQ25896 shutdown returned but device is still running; falling back to deep sleep");
-    } else {
-      renderPowerOffScreen("Entering sleep mode...");
-      LOG_ERR("MAIN", "BQ25896 shutdown failed or rejected; falling back to deep sleep");
-    }
-    enterDeepSleepKeepingScreen();
+    enterPowerOffKeepingScreen("Shutting down...");
     return;
   }
 
   const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();
   if (millis() - lastActivityTime >= sleepTimeoutMs) {
-    LOG_DBG("SLP", "Auto-sleep triggered after %lu ms of inactivity", sleepTimeoutMs);
-    enterDeepSleep();
-    // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
-    return;
+    if (gpio.isUsbConnected()) {
+      LOG_DBG("SLP", "Auto power-off skipped after %lu ms of inactivity because USB is connected", sleepTimeoutMs);
+      lastActivityTime = millis();
+    } else {
+      LOG_DBG("SLP", "Auto power-off triggered after %lu ms of inactivity", sleepTimeoutMs);
+      enterPowerOffKeepingScreen("Shutting down...");
+      // This should never be hit as the fallback path calls esp_deep_sleep_start
+      return;
+    }
   }
 
   // if (millis() > 5000 && gpio.isPressed(HalGPIO::BTN_POWER) &&

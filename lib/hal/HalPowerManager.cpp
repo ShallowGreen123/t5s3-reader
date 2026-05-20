@@ -45,7 +45,7 @@ void HalPowerManager::setPowerSaving(bool enabled) {
   }
 }
 
-void HalPowerManager::startDeepSleep(HalGPIO& gpio) const { gpio.startDeepSleep(); }
+void HalPowerManager::startDeepSleep(HalGPIO& gpio, bool wakeOnTouch) const { gpio.startDeepSleep(wakeOnTouch); }
 
 uint16_t HalPowerManager::getBatteryPercentage() const {
   const unsigned long now = millis();

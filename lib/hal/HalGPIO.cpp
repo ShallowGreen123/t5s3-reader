@@ -159,7 +159,7 @@ unsigned long HalGPIO::getHeldTime() const {
   return buttonPressFinish - buttonPressStart;
 }
 
-void HalGPIO::startDeepSleep() {
+void HalGPIO::startDeepSleep(bool wakeOnTouch) {
   while (isPressed(BTN_POWER)) {
     delay(50);
     update();
@@ -168,11 +168,13 @@ void HalGPIO::startDeepSleep() {
   BoardT5S3::deinitForSleep();
   pinMode(T5S3_BOOT_BTN, INPUT_PULLUP);
   pinMode(T5S3_TOUCH_INT, INPUT_PULLUP);
+  const uint64_t wakeMask = wakeOnTouch ? (POWER_WAKE_MASK | TOUCH_WAKE_MASK) : POWER_WAKE_MASK;
+  LOG_DBG("GPIO", "Entering deep sleep, wakeOnTouch=%d", wakeOnTouch ? 1 : 0);
 #if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
-  esp_deep_sleep_enable_gpio_wakeup(POWER_WAKE_MASK | TOUCH_WAKE_MASK, ESP_GPIO_WAKEUP_GPIO_LOW);
+  esp_deep_sleep_enable_gpio_wakeup(wakeMask, ESP_GPIO_WAKEUP_GPIO_LOW);
 #else
-  esp_sleep_enable_ext1_wakeup(POWER_WAKE_MASK | TOUCH_WAKE_MASK, ESP_EXT1_WAKEUP_ANY_LOW);
+  esp_sleep_enable_ext1_wakeup(wakeMask, ESP_EXT1_WAKEUP_ANY_LOW);
 #endif
   esp_deep_sleep_start();
 }
