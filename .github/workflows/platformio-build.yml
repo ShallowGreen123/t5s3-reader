@@ -5,7 +5,23 @@ on:
     branches:
       - main
       - master
+    paths:
+      - ".github/workflows/platformio-build.yml"
+      - "src/**"
+      - "lib/**"
+      - "scripts/**"
+      - "test/**"
+      - "platformio.ini"
+      - "partitions.csv"
   pull_request:
+    paths:
+      - ".github/workflows/platformio-build.yml"
+      - "src/**"
+      - "lib/**"
+      - "scripts/**"
+      - "test/**"
+      - "platformio.ini"
+      - "partitions.csv"
   workflow_dispatch:
 
 concurrency:
